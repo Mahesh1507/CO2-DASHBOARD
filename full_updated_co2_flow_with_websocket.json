@@ -1,0 +1,254 @@
+[
+  {
+    "id": "a1",
+    "type": "tab",
+    "label": "CO2 Dashboard Flow",
+    "disabled": false
+  },
+  {
+    "id": "mqtt_in_co2",
+    "type": "mqtt in",
+    "z": "a1",
+    "name": "CO2 Sensor",
+    "topic": "co2/sensor",
+    "datatype": "auto-detect",
+    "broker": "mqtt_broker_local",
+    "inputs": 0,
+    "x": 170,
+    "y": 80,
+    "wires": [
+      [
+        "store_ppm",
+        "co2_chart",
+        "co2_gauge",
+        "ws_output_co2"
+      ]
+    ]
+  },
+  {
+    "id": "store_ppm",
+    "type": "function",
+    "z": "a1",
+    "name": "Store Latest PPM",
+    "func": "flow.set(\"latestPPM\", msg.payload);\nreturn msg;",
+    "outputs": 1,
+    "x": 710,
+    "y": 60,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "co2_chart",
+    "type": "ui_chart",
+    "z": "a1",
+    "name": "",
+    "group": "dashboard_group",
+    "order": 1,
+    "width": 0,
+    "height": 0,
+    "label": "CO\u2082 Levels",
+    "chartType": "line",
+    "legend": "false",
+    "xformat": "HH:mm",
+    "interpolate": "linear",
+    "nodata": "",
+    "dot": false,
+    "ymin": "300",
+    "ymax": "2000",
+    "removeOlder": 10,
+    "removeOlderPoints": "",
+    "removeOlderUnit": "3600",
+    "cutout": 0,
+    "useOneColor": false,
+    "colors": [
+      "#00bfff"
+    ],
+    "outputs": 1,
+    "x": 830,
+    "y": 120,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "co2_gauge",
+    "type": "ui_gauge",
+    "z": "a1",
+    "name": "",
+    "group": "dashboard_group",
+    "order": 2,
+    "width": 0,
+    "height": 0,
+    "gtype": "gage",
+    "title": "Live CO\u2082 (ppm)",
+    "label": "ppm",
+    "format": "{{value}}",
+    "min": 300,
+    "max": 2000,
+    "colors": [
+      "#00ff00",
+      "#ffcc00",
+      "#ff0000"
+    ],
+    "seg1": 800,
+    "seg2": 1500,
+    "x": 700,
+    "y": 200,
+    "wires": []
+  },
+  {
+    "id": "log_trigger",
+    "type": "inject",
+    "z": "a1",
+    "name": "Every 30 minutes",
+    "props": [],
+    "repeat": "1800",
+    "crontab": "",
+    "once": true,
+    "onceDelay": 10,
+    "topic": "",
+    "x": 150,
+    "y": 260,
+    "wires": [
+      [
+        "log_ppm"
+      ]
+    ]
+  },
+  {
+    "id": "log_ppm",
+    "type": "function",
+    "z": "a1",
+    "name": "Log PPM Value",
+    "func": "let ppm = flow.get(\"latestPPM\") || \"N/A\";\nlet logs = flow.get(\"co2Logs\") || [];\nlogs.push({ time: new Date().toLocaleString(), value: ppm });\nflow.set(\"co2Logs\", logs);\nreturn msg;",
+    "outputs": 1,
+    "x": 500,
+    "y": 260,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "http_in",
+    "type": "http in",
+    "z": "a1",
+    "name": "Download CSV",
+    "url": "/download-co2",
+
+    
+    "method": "get",
+    "upload": false,
+    "swaggerDoc": "",
+    "x": 120,
+    "y": 400,
+    "wires": [
+      [
+        "build_csv"
+      ]
+    ]
+  },
+  {
+    "id": "build_csv",
+    "type": "function",
+    "z": "a1",
+    "name": "Build CSV Data",
+    "func": "// Get logs from flow context\nlet logs = flow.get(\"co2Logs\");\n\n// Validate logs is an array\nif (!Array.isArray(logs)) {\n    logs = [];\n    flow.set(\"co2Logs\", logs);\n}\n\n// Check if logs array is empty\nif (logs.length === 0) {\n    // Create a simple CSV with a message\n    msg.payload = \"CO₂ Log Report\\nNo data available yet.\\n\\nGenerated on: \" + new Date().toLocaleString();\n    return msg;\n}\n\n// Create CSV header\nlet csvContent = \"CO₂ Log Report\\n\";\ncsvContent += \"Total entries: \" + logs.length + \"\\n\\n\";\ncsvContent += \"Timestamp,CO₂ (ppm),Status\\n\";\n\n// Safely process each log entry\nlogs.forEach(log => {\n    // Ensure log has required properties\n    if (!log || typeof log !== 'object') return;\n    \n    const time = log.time || \"Unknown\";\n    const value = (log.value !== undefined && log.value !== null) ? String(log.value) : \"N/A\";\n    \n    let status = \"Normal\";\n    if (value !== \"N/A\") {\n        const ppm = parseFloat(value);\n        if (!isNaN(ppm)) {\n            if (ppm > 1400) status = \"High\";\n            else if (ppm > 1000) status = \"Elevated\";\n        }\n    }\n    \n    // Escape commas in values to prevent CSV formatting issues\n    const escapedTime = time.includes(\",\") ? `\"${time}\"` : time;\n    const escapedValue = value.includes(\",\") ? `\"${value}\"` : value;\n    const escapedStatus = status.includes(\",\") ? `\"${status}\"` : status;\n    \n    csvContent += `${escapedTime},${escapedValue},${escapedStatus}\\n`;\n});\n\n// Add generation timestamp\ncsvContent += \"\\nGenerated on: \" + new Date().toLocaleString();\n\n// Set the CSV content as the payload\nmsg.payload = csvContent;\n\nreturn msg;",
+    "outputs": 1,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 460,
+    "y": 560,
+    "wires": [
+      [
+        "http_response"
+      ]
+    ]
+  },
+  {
+    "id": "http_response",
+    "type": "http response",
+    "z": "a1",
+    "name": "CSV Output",
+    "statusCode": "200",
+    "headers": {
+      "Content-Type": "text/csv",
+      "Content-Disposition": "attachment; filename=co2_log.csv"
+    },
+    "x": 620,
+    "y": 560,
+    "wires": []
+  },
+  {
+    "id": "ws_output_co2",
+    "type": "websocket out",
+    "z": "a1",
+    "name": "WebSocket CO\u2082 Out",
+    "server": "ws_server",
+    "client": "",
+    "path": "/ws/co2",
+    "wholemsg": false,
+    "x": 420,
+    "y": 20,
+    "wires": []
+  },
+  {
+    "id": "ws_server",
+    "type": "websocket-server",
+    "z": "",
+    "name": "WebSocket Server",
+    "path": "/ws/co2",
+    "port": "1880",
+    "x": 250,
+    "y": 20,
+    "wires": []
+  },
+  {
+    "id": "mqtt_broker_local",
+    "type": "mqtt-broker",
+    "name": "Local MQTT Broker",
+    "broker": "192.168.204.116",
+    "port": "1883",
+    "clientid": "",
+    "autoConnect": true,
+    "usetls": false,
+    "protocolVersion": "4",
+    "keepalive": "60",
+    "cleansession": true,
+    "autoUnsubscribe": true,
+    "birthTopic": "",
+    "birthQos": "0",
+    "birthPayload": "",
+    "birthMsg": {},
+    "closeTopic": "",
+    "closePayload": "",
+    "closeMsg": {},
+    "willTopic": "",
+    "willQos": "0",
+    "willPayload": "",
+    "willMsg": {},
+    "userProps": "",
+    "sessionExpiry": ""
+  },
+  {
+    "id": "dashboard_group",
+    "type": "ui_group",
+    "name": "CO2 Monitoring",
+    "tab": "dashboard_tab",
+    "order": 1,
+    "disp": true,
+    "width": "6"
+  },
+  {
+    "id": "dashboard_tab",
+    "type": "ui_tab",
+    "name": "Dashboard",
+    "icon": "dashboard",
+    "order": 1,
+    "disabled": false,
+    "hidden": false
+  }
+]

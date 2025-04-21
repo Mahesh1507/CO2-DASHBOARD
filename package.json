@@ -1,0 +1,15 @@
+{
+  "name": "co2-monitoring-dashboard",
+  "version": "1.0.0",
+  "description": "CO₂ Monitoring Dashboard with real-time updates",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.13.0",
+    "cors": "^2.8.5",
+    "node-fetch": "^2.6.9"
+  }
+} 
