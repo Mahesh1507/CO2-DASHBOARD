@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>CO₂ Monitoring Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --primary-color: #2196F3;
+      --secondary-color: #1976D2;
+      --success-color: #4CAF50;
+      --warning-color: #FFC107;
+      --danger-color: #F44336;
+      --background-color: #f5f5f5;
+      --card-background: #ffffff;
+      --text-primary: #333333;
+      --text-secondary: #666666;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Roboto', sans-serif;
+      background-color: var(--background-color);
+      color: var(--text-primary);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .header {
+      background-color: var(--card-background);
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .header::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 5px;
+      background: linear-gradient(90deg, var(--success-color), var(--warning-color), var(--danger-color));
+    }
+
+    .header h1 {
+      color: var(--primary-color);
+      font-size: 24px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background-color: rgba(0,0,0,0.05);
+      padding: 8px 15px;
+      border-radius: 20px;
+    }
+
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background-color: var(--success-color);
+      box-shadow: 0 0 10px var(--success-color);
+      transition: all 0.3s ease;
+    }
+
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .card {
+      background-color: var(--card-background);
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    }
+
+    .card::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 4px;
+      background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+      opacity: 0.7;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+
+    .card-title {
+      font-size: 18px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .card-icon {
+      color: var(--primary-color);
+      font-size: 20px;
+    }
+
+    .current-reading {
+      text-align: center;
+      padding: 20px;
+    }
+
+    .ppm-value {
+      font-size: 48px;
+      font-weight: 700;
+      color: var(--primary-color);
+      margin: 10px 0;
+      text-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    .ppm-label {
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+
+    .log-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+
+    .log-table th,
+    .log-table td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #eee;
+    }
+
+    .log-table th {
+      background-color: #f8f9fa;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    .log-table tbody tr:hover {
+      background-color: #f8f9fa;
+    }
+
+    .download-btn {
+      background-color: var(--primary-color);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    .download-btn:hover {
+      background-color: var(--secondary-color);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+
+    .alert {
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+
+    .alert-info {
+      background-color: #e3f2fd;
+      color: var(--primary-color);
+      border-left: 4px solid var(--primary-color);
+    }
+
+    .alert-warning {
+      background-color: #fff3e0;
+      color: #f57c00;
+      border-left: 4px solid var(--warning-color);
+    }
+
+    .alert-danger {
+      background-color: #ffebee;
+      color: var(--danger-color);
+      border-left: 4px solid var(--danger-color);
+    }
+
+    .demo-mode-banner {
+      background-color: #e3f2fd;
+      color: var(--primary-color);
+      padding: 10px;
+      text-align: center;
+      margin-bottom: 20px;
+      border-radius: 5px;
+      font-weight: 500;
+    }
+
+    @media (max-width: 768px) {
+      .dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .header {
+        flex-direction: column;
+        gap: 10px;
+        text-align: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="demo-mode-banner">
+      <i class="fas fa-info-circle"></i> Demo Mode - Using simulated data
+    </div>
+    
+    <div class="header">
+      <h1><i class="fas fa-chart-line"></i> CO₂ Monitoring Dashboard</h1>
+      <div class="status-indicator">
+        <div class="status-dot"></div>
+        <span>Live</span>
+      </div>
+    </div>
+
+    <div class="dashboard-grid">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Current CO₂ Level</span>
+          <i class="fas fa-wind card-icon"></i>
+        </div>
+        <div class="current-reading">
+          <div class="ppm-value" id="currentPPM">--</div>
+          <div class="ppm-label">Parts Per Million (ppm)</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Status</span>
+          <i class="fas fa-info-circle card-icon"></i>
+        </div>
+        <div id="statusAlert" class="alert alert-info">
+          <i class="fas fa-info-circle"></i>
+          <span>Monitoring CO₂ levels...</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">CO₂ Log History</span>
+        <button class="download-btn" onclick="downloadDemoCSV()">
+          <i class="fas fa-file-csv"></i>
+          Download CSV
+        </button>
+      </div>
+      <table class="log-table">
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>CO₂ (ppm)</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="logTableBody">
+          <!-- Entries will be added here -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    // Demo mode - simulate data
+    let lastUpdate = 0;
+    const updateInterval = 30 * 1000; // 30 seconds
+    let currentPPM = 800; // Starting value
+    
+    // Simulate WebSocket connection
+    function simulateWebSocket() {
+      console.log("Demo mode: Simulating WebSocket connection");
+      document.querySelector(".status-dot").style.backgroundColor = "var(--success-color)";
+      document.querySelector(".status-dot").style.boxShadow = "0 0 10px var(--success-color)";
+      
+      // Update data every 5 seconds
+      setInterval(updateData, 5000);
+    }
+    
+    function updateData() {
+      // Simulate random fluctuations
+      const change = Math.floor(Math.random() * 100) - 50; // -50 to +50
+      currentPPM = Math.max(400, Math.min(2000, currentPPM + change));
+      
+      const now = Date.now();
+      const timestamp = new Date().toLocaleString();
+      
+      // Update current PPM display
+      document.getElementById("currentPPM").textContent = currentPPM;
+      
+      // Update status
+      updateStatus(currentPPM);
+      
+      // Add new log entry if interval has passed
+      if (now - lastUpdate >= updateInterval || lastUpdate === 0) {
+        const tableBody = document.getElementById("logTableBody");
+        const newRow = tableBody.insertRow(0);
+        
+        const timeCell = newRow.insertCell(0);
+        const ppmCell = newRow.insertCell(1);
+        const statusCell = newRow.insertCell(2);
+        
+        timeCell.textContent = timestamp;
+        ppmCell.textContent = currentPPM;
+        
+        // Add status indicator
+        if (currentPPM >= 400 && currentPPM <= 1000) {
+          statusCell.innerHTML = '<i class="fas fa-check-circle" style="color: var(--success-color)"></i> Normal';
+        } else if (currentPPM > 1000 && currentPPM <= 1400) {
+          statusCell.innerHTML = '<i class="fas fa-exclamation-triangle" style="color: var(--warning-color)"></i> Elevated';
+        } else {
+          statusCell.innerHTML = '<i class="fas fa-exclamation-circle" style="color: var(--danger-color)"></i> High';
+        }
+        
+        lastUpdate = now;
+      }
+    }
+    
+    function updateStatus(ppm) {
+      const statusAlert = document.getElementById("statusAlert");
+      if (ppm >= 400 && ppm <= 1000) {
+        statusAlert.className = "alert alert-info";
+        statusAlert.innerHTML = '<i class="fas fa-info-circle"></i><span>CO₂ levels are normal</span>';
+      } else if (ppm > 1000 && ppm <= 1400) {
+        statusAlert.className = "alert alert-warning";
+        statusAlert.innerHTML = '<i class="fas fa-exclamation-triangle"></i><span>CO₂ levels are elevated</span>';
+      } else {
+        statusAlert.className = "alert alert-danger";
+        statusAlert.innerHTML = '<i class="fas fa-exclamation-circle"></i><span>CO₂ levels are too high!</span>';
+      }
+    }
+    
+    function downloadDemoCSV() {
+      try {
+        // Create a loading indicator
+        const downloadBtn = document.querySelector('.download-btn');
+        const originalText = downloadBtn.innerHTML;
+        downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating CSV...';
+        downloadBtn.disabled = true;
+        
+        // Create demo CSV data
+        const csvContent = "Timestamp,CO2 (ppm),Status\n";
+        const tableBody = document.getElementById("logTableBody");
+        const rows = tableBody.getElementsByTagName("tr");
+        
+        let csvData = csvContent;
+        for (let i = 0; i < rows.length; i++) {
+          const cells = rows[i].getElementsByTagName("td");
+          if (cells.length >= 3) {
+            const timestamp = cells[0].textContent;
+            const ppm = cells[1].textContent;
+            const status = cells[2].textContent.trim();
+            csvData += `${timestamp},${ppm},${status}\n`;
+          }
+        }
+        
+        // Create download link
+        const blob = new Blob([csvData], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `co2_log_${new Date().toISOString().slice(0,10)}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        
+        // Restore button state
+        downloadBtn.innerHTML = originalText;
+        downloadBtn.disabled = false;
+      } catch (error) {
+        console.error('CSV download error:', error);
+        alert('Failed to generate CSV. Please try again later.');
+      }
+    }
+    
+    // Start the demo when the page loads
+    window.onload = function() {
+      simulateWebSocket();
+      updateData(); // Initial update
+    };
+  </script>
+</body>
+</html> 
