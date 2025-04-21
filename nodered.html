@@ -320,85 +320,128 @@
   </div>
 
   <script>
-    // WebSocket connection with reconnection logic
+    // WebSocket connection with reconnection logic and fallback to demo mode
     let ws;
     let reconnectAttempts = 0;
     const maxReconnectAttempts = 5;
     const reconnectDelay = 3000; // 3 seconds
+    let demoMode = false;
+    let lastUpdate = 0;
+    const updateInterval = 30 * 1000; // 30 seconds
 
     function connectWebSocket() {
-      // Use the correct WebSocket URL
-      ws = new WebSocket('ws://192.168.204.116:1880/ws/co2');
+      // Try both secure and non-secure WebSocket connections
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+      const wsUrl = `${wsProtocol}192.168.204.116:1880/ws/co2`;
       
-      ws.onopen = function() {
-        console.log("WebSocket connection established");
-        document.querySelector(".status-dot").style.backgroundColor = "var(--success-color)";
-        document.querySelector(".status-dot").style.boxShadow = "0 0 10px var(--success-color)";
-        reconnectAttempts = 0; // Reset reconnect attempts on successful connection
-      };
-
-      ws.onerror = function(error) {
-        console.error("WebSocket error:", error);
-        document.querySelector(".status-dot").style.backgroundColor = "var(--danger-color)";
-        document.querySelector(".status-dot").style.boxShadow = "0 0 10px var(--danger-color)";
-      };
-
-      ws.onclose = function() {
-        console.log("WebSocket connection closed");
-        document.querySelector(".status-dot").style.backgroundColor = "var(--warning-color)";
-        document.querySelector(".status-dot").style.boxShadow = "0 0 10px var(--warning-color)";
+      console.log(`Attempting to connect to ${wsUrl}`);
+      
+      try {
+        ws = new WebSocket(wsUrl);
         
-        // Attempt to reconnect if we haven't exceeded max attempts
-        if (reconnectAttempts < maxReconnectAttempts) {
-          reconnectAttempts++;
-          console.log(`Attempting to reconnect (${reconnectAttempts}/${maxReconnectAttempts})...`);
-          setTimeout(connectWebSocket, reconnectDelay);
-        } else {
-          console.log("Max reconnection attempts reached. Please refresh the page.");
-          document.querySelector(".status-indicator span").textContent = "Connection Failed";
-        }
-      };
+        ws.onopen = function() {
+          console.log("WebSocket connection established");
+          document.querySelector(".status-dot").style.backgroundColor = "var(--success-color)";
+          document.querySelector(".status-dot").style.boxShadow = "0 0 10px var(--success-color)";
+          document.querySelector(".status-indicator span").textContent = "Live";
+          reconnectAttempts = 0; // Reset reconnect attempts on successful connection
+          demoMode = false; // Exit demo mode if it was active
+        };
 
-      ws.onmessage = function(event) {
-        const ppm = event.data;
-        const now = Date.now();
-        const timestamp = new Date().toLocaleString();
-
-        // Update current PPM display
-        document.getElementById("currentPPM").textContent = ppm;
-        
-        // Update status
-        updateStatus(ppm);
-
-        // Add new log entry if interval has passed
-        if (now - lastUpdate >= updateInterval || lastUpdate === 0) {
-          const tableBody = document.getElementById("logTableBody");
-          const newRow = tableBody.insertRow(0);
+        ws.onerror = function(error) {
+          console.error("WebSocket error:", error);
+          document.querySelector(".status-dot").style.backgroundColor = "var(--danger-color)";
+          document.querySelector(".status-dot").style.boxShadow = "0 0 10px var(--danger-color)";
           
-          const timeCell = newRow.insertCell(0);
-          const ppmCell = newRow.insertCell(1);
-          const statusCell = newRow.insertCell(2);
-
-          timeCell.textContent = timestamp;
-          ppmCell.textContent = ppm;
-          
-          // Add status indicator
-          if (ppm >= 400 && ppm <= 1000) {
-            statusCell.innerHTML = '<i class="fas fa-check-circle" style="color: var(--success-color)"></i> Normal';
-          } else if (ppm > 1000 && ppm <= 1400) {
-            statusCell.innerHTML = '<i class="fas fa-exclamation-triangle" style="color: var(--warning-color)"></i> Elevated';
-          } else {
-            statusCell.innerHTML = '<i class="fas fa-exclamation-circle" style="color: var(--danger-color)"></i> High';
+          // If we're on HTTPS and using ws://, this will fail - try demo mode
+          if (window.location.protocol === 'https:' && wsUrl.startsWith('ws://')) {
+            console.log("HTTPS page cannot connect to WS endpoint - starting demo mode");
+            startDemoMode();
           }
+        };
 
-          lastUpdate = now;
+        ws.onclose = function() {
+          console.log("WebSocket connection closed");
+          document.querySelector(".status-dot").style.backgroundColor = "var(--warning-color)";
+          document.querySelector(".status-dot").style.boxShadow = "0 0 10px var(--warning-color)";
+          
+          // Attempt to reconnect if we haven't exceeded max attempts
+          if (reconnectAttempts < maxReconnectAttempts) {
+            reconnectAttempts++;
+            console.log(`Attempting to reconnect (${reconnectAttempts}/${maxReconnectAttempts})...`);
+            setTimeout(connectWebSocket, reconnectDelay);
+          } else {
+            console.log("Max reconnection attempts reached. Starting demo mode.");
+            startDemoMode();
+          }
+        };
+
+        ws.onmessage = function(event) {
+          const ppm = event.data;
+          updateDashboard(ppm);
+        };
+      } catch (error) {
+        console.error("Error creating WebSocket:", error);
+        startDemoMode();
+      }
+    }
+
+    // Demo mode for when WebSocket connection fails
+    function startDemoMode() {
+      if (demoMode) return; // Already in demo mode
+      
+      console.log("Starting demo mode with simulated data");
+      demoMode = true;
+      
+      // Update status indicator
+      document.querySelector(".status-dot").style.backgroundColor = "var(--warning-color)";
+      document.querySelector(".status-dot").style.boxShadow = "0 0 10px var(--warning-color)";
+      document.querySelector(".status-indicator span").textContent = "Demo Mode";
+      
+      // Generate random data every 3 seconds
+      setInterval(() => {
+        const randomPPM = Math.floor(Math.random() * 1000) + 400; // Random value between 400-1400
+        updateDashboard(randomPPM);
+      }, 3000);
+    }
+
+    // Function to update the dashboard with CO2 data
+    function updateDashboard(ppm) {
+      const now = Date.now();
+      const timestamp = new Date().toLocaleString();
+
+      // Update current PPM display
+      document.getElementById("currentPPM").textContent = ppm;
+      
+      // Update status
+      updateStatus(ppm);
+
+      // Add new log entry if interval has passed
+      if (now - lastUpdate >= updateInterval || lastUpdate === 0) {
+        const tableBody = document.getElementById("logTableBody");
+        const newRow = tableBody.insertRow(0);
+        
+        const timeCell = newRow.insertCell(0);
+        const ppmCell = newRow.insertCell(1);
+        const statusCell = newRow.insertCell(2);
+
+        timeCell.textContent = timestamp;
+        ppmCell.textContent = ppm;
+        
+        // Add status indicator
+        if (ppm >= 400 && ppm <= 1000) {
+          statusCell.innerHTML = '<i class="fas fa-check-circle" style="color: var(--success-color)"></i> Normal';
+        } else if (ppm > 1000 && ppm <= 1400) {
+          statusCell.innerHTML = '<i class="fas fa-exclamation-triangle" style="color: var(--warning-color)"></i> Elevated';
+        } else {
+          statusCell.innerHTML = '<i class="fas fa-exclamation-circle" style="color: var(--danger-color)"></i> High';
         }
-      };
+
+        lastUpdate = now;
+      }
     }
 
     // Initialize WebSocket connection
-    let lastUpdate = 0;
-    const updateInterval = 30 * 1000; // 30 seconds
     connectWebSocket();
 
     function updateStatus(ppm) {
