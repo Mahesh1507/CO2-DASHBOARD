@@ -320,29 +320,86 @@
   </div>
 
   <script>
-    // Update WebSocket URL to use relative path
-    const ws = new WebSocket(`ws://${window.location.host}/ws`);
+    // WebSocket connection with reconnection logic
+    let ws;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 5;
+    const reconnectDelay = 3000; // 3 seconds
+
+    function connectWebSocket() {
+      // Use the correct WebSocket URL
+      ws = new WebSocket('ws://192.168.204.116:1880/ws/co2');
+      
+      ws.onopen = function() {
+        console.log("WebSocket connection established");
+        document.querySelector(".status-dot").style.backgroundColor = "var(--success-color)";
+        document.querySelector(".status-dot").style.boxShadow = "0 0 10px var(--success-color)";
+        reconnectAttempts = 0; // Reset reconnect attempts on successful connection
+      };
+
+      ws.onerror = function(error) {
+        console.error("WebSocket error:", error);
+        document.querySelector(".status-dot").style.backgroundColor = "var(--danger-color)";
+        document.querySelector(".status-dot").style.boxShadow = "0 0 10px var(--danger-color)";
+      };
+
+      ws.onclose = function() {
+        console.log("WebSocket connection closed");
+        document.querySelector(".status-dot").style.backgroundColor = "var(--warning-color)";
+        document.querySelector(".status-dot").style.boxShadow = "0 0 10px var(--warning-color)";
+        
+        // Attempt to reconnect if we haven't exceeded max attempts
+        if (reconnectAttempts < maxReconnectAttempts) {
+          reconnectAttempts++;
+          console.log(`Attempting to reconnect (${reconnectAttempts}/${maxReconnectAttempts})...`);
+          setTimeout(connectWebSocket, reconnectDelay);
+        } else {
+          console.log("Max reconnection attempts reached. Please refresh the page.");
+          document.querySelector(".status-indicator span").textContent = "Connection Failed";
+        }
+      };
+
+      ws.onmessage = function(event) {
+        const ppm = event.data;
+        const now = Date.now();
+        const timestamp = new Date().toLocaleString();
+
+        // Update current PPM display
+        document.getElementById("currentPPM").textContent = ppm;
+        
+        // Update status
+        updateStatus(ppm);
+
+        // Add new log entry if interval has passed
+        if (now - lastUpdate >= updateInterval || lastUpdate === 0) {
+          const tableBody = document.getElementById("logTableBody");
+          const newRow = tableBody.insertRow(0);
+          
+          const timeCell = newRow.insertCell(0);
+          const ppmCell = newRow.insertCell(1);
+          const statusCell = newRow.insertCell(2);
+
+          timeCell.textContent = timestamp;
+          ppmCell.textContent = ppm;
+          
+          // Add status indicator
+          if (ppm >= 400 && ppm <= 1000) {
+            statusCell.innerHTML = '<i class="fas fa-check-circle" style="color: var(--success-color)"></i> Normal';
+          } else if (ppm > 1000 && ppm <= 1400) {
+            statusCell.innerHTML = '<i class="fas fa-exclamation-triangle" style="color: var(--warning-color)"></i> Elevated';
+          } else {
+            statusCell.innerHTML = '<i class="fas fa-exclamation-circle" style="color: var(--danger-color)"></i> High';
+          }
+
+          lastUpdate = now;
+        }
+      };
+    }
+
+    // Initialize WebSocket connection
     let lastUpdate = 0;
     const updateInterval = 30 * 1000; // 30 seconds
-
-    // Add connection status handling
-    ws.onopen = function() {
-      console.log("WebSocket connection established");
-      document.querySelector(".status-dot").style.backgroundColor = "var(--success-color)";
-      document.querySelector(".status-dot").style.boxShadow = "0 0 10px var(--success-color)";
-    };
-
-    ws.onerror = function(error) {
-      console.error("WebSocket error:", error);
-      document.querySelector(".status-dot").style.backgroundColor = "var(--danger-color)";
-      document.querySelector(".status-dot").style.boxShadow = "0 0 10px var(--danger-color)";
-    };
-
-    ws.onclose = function() {
-      console.log("WebSocket connection closed");
-      document.querySelector(".status-dot").style.backgroundColor = "var(--warning-color)";
-      document.querySelector(".status-dot").style.boxShadow = "0 0 10px var(--warning-color)";
-    };
+    connectWebSocket();
 
     function updateStatus(ppm) {
       const statusAlert = document.getElementById("statusAlert");
@@ -357,42 +414,6 @@
         statusAlert.innerHTML = '<i class="fas fa-exclamation-circle"></i><span>CO₂ levels are too high!</span>';
       }
     }
-
-    ws.onmessage = function(event) {
-      const ppm = event.data;
-      const now = Date.now();
-      const timestamp = new Date().toLocaleString();
-
-      // Update current PPM display
-      document.getElementById("currentPPM").textContent = ppm;
-      
-      // Update status
-      updateStatus(ppm);
-
-      // Add new log entry if interval has passed
-      if (now - lastUpdate >= updateInterval || lastUpdate === 0) {
-        const tableBody = document.getElementById("logTableBody");
-        const newRow = tableBody.insertRow(0);
-        
-        const timeCell = newRow.insertCell(0);
-        const ppmCell = newRow.insertCell(1);
-        const statusCell = newRow.insertCell(2);
-
-        timeCell.textContent = timestamp;
-        ppmCell.textContent = ppm;
-        
-        // Add status indicator
-        if (ppm >= 400 && ppm <= 1000) {
-          statusCell.innerHTML = '<i class="fas fa-check-circle" style="color: var(--success-color)"></i> Normal';
-        } else if (ppm > 1000 && ppm <= 1400) {
-          statusCell.innerHTML = '<i class="fas fa-exclamation-triangle" style="color: var(--warning-color)"></i> Elevated';
-        } else {
-          statusCell.innerHTML = '<i class="fas fa-exclamation-circle" style="color: var(--danger-color)"></i> High';
-        }
-
-        lastUpdate = now;
-      }
-    };
 
     function downloadCSV() {
       try {

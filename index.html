@@ -156,6 +156,21 @@
       font-size: 14px;
     }
 
+    /* Bar Chart Styles */
+    .bar-chart-container,
+    .bar-chart,
+    .bar,
+    .bar-label,
+    .chart-y-axis,
+    .chart-grid,
+    .chart-grid-line,
+    .chart-threshold,
+    .chart-legend,
+    .legend-item,
+    .legend-color {
+      display: none;
+    }
+
     .log-table {
       width: 100%;
       border-collapse: collapse;
@@ -229,16 +244,6 @@
       border-left: 4px solid var(--danger-color);
     }
 
-    .demo-mode-banner {
-      background-color: #e3f2fd;
-      color: var(--primary-color);
-      padding: 10px;
-      text-align: center;
-      margin-bottom: 20px;
-      border-radius: 5px;
-      font-weight: 500;
-    }
-
     @media (max-width: 768px) {
       .dashboard-grid {
         grid-template-columns: 1fr;
@@ -249,15 +254,16 @@
         gap: 10px;
         text-align: center;
       }
+      
+      .bar-chart-container {
+        max-width: 100%;
+        height: 250px;
+      }
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="demo-mode-banner">
-      <i class="fas fa-info-circle"></i> Demo Mode - Using simulated data
-    </div>
-    
     <div class="header">
       <h1><i class="fas fa-chart-line"></i> CO₂ Monitoring Dashboard</h1>
       <div class="status-indicator">
@@ -293,7 +299,7 @@
     <div class="card">
       <div class="card-header">
         <span class="card-title">CO₂ Log History</span>
-        <button class="download-btn" onclick="downloadDemoCSV()">
+        <button class="download-btn" onclick="downloadCSV()">
           <i class="fas fa-file-csv"></i>
           Download CSV
         </button>
@@ -314,60 +320,87 @@
   </div>
 
   <script>
-    // Demo mode - simulate data
+    // WebSocket connection with reconnection logic
+    let ws;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 5;
+    const reconnectDelay = 3000; // 3 seconds
+
+    function connectWebSocket() {
+      // Use the correct WebSocket URL
+      ws = new WebSocket('ws://192.168.204.116:1880/ws/co2');
+      
+      ws.onopen = function() {
+        console.log("WebSocket connection established");
+        document.querySelector(".status-dot").style.backgroundColor = "var(--success-color)";
+        document.querySelector(".status-dot").style.boxShadow = "0 0 10px var(--success-color)";
+        reconnectAttempts = 0; // Reset reconnect attempts on successful connection
+      };
+
+      ws.onerror = function(error) {
+        console.error("WebSocket error:", error);
+        document.querySelector(".status-dot").style.backgroundColor = "var(--danger-color)";
+        document.querySelector(".status-dot").style.boxShadow = "0 0 10px var(--danger-color)";
+      };
+
+      ws.onclose = function() {
+        console.log("WebSocket connection closed");
+        document.querySelector(".status-dot").style.backgroundColor = "var(--warning-color)";
+        document.querySelector(".status-dot").style.boxShadow = "0 0 10px var(--warning-color)";
+        
+        // Attempt to reconnect if we haven't exceeded max attempts
+        if (reconnectAttempts < maxReconnectAttempts) {
+          reconnectAttempts++;
+          console.log(`Attempting to reconnect (${reconnectAttempts}/${maxReconnectAttempts})...`);
+          setTimeout(connectWebSocket, reconnectDelay);
+        } else {
+          console.log("Max reconnection attempts reached. Please refresh the page.");
+          document.querySelector(".status-indicator span").textContent = "Connection Failed";
+        }
+      };
+
+      ws.onmessage = function(event) {
+        const ppm = event.data;
+        const now = Date.now();
+        const timestamp = new Date().toLocaleString();
+
+        // Update current PPM display
+        document.getElementById("currentPPM").textContent = ppm;
+        
+        // Update status
+        updateStatus(ppm);
+
+        // Add new log entry if interval has passed
+        if (now - lastUpdate >= updateInterval || lastUpdate === 0) {
+          const tableBody = document.getElementById("logTableBody");
+          const newRow = tableBody.insertRow(0);
+          
+          const timeCell = newRow.insertCell(0);
+          const ppmCell = newRow.insertCell(1);
+          const statusCell = newRow.insertCell(2);
+
+          timeCell.textContent = timestamp;
+          ppmCell.textContent = ppm;
+          
+          // Add status indicator
+          if (ppm >= 400 && ppm <= 1000) {
+            statusCell.innerHTML = '<i class="fas fa-check-circle" style="color: var(--success-color)"></i> Normal';
+          } else if (ppm > 1000 && ppm <= 1400) {
+            statusCell.innerHTML = '<i class="fas fa-exclamation-triangle" style="color: var(--warning-color)"></i> Elevated';
+          } else {
+            statusCell.innerHTML = '<i class="fas fa-exclamation-circle" style="color: var(--danger-color)"></i> High';
+          }
+
+          lastUpdate = now;
+        }
+      };
+    }
+
+    // Initialize WebSocket connection
     let lastUpdate = 0;
     const updateInterval = 30 * 1000; // 30 seconds
-    let currentPPM = 800; // Starting value
-    
-    // Simulate WebSocket connection
-    function simulateWebSocket() {
-      console.log("Demo mode: Simulating WebSocket connection");
-      document.querySelector(".status-dot").style.backgroundColor = "var(--success-color)";
-      document.querySelector(".status-dot").style.boxShadow = "0 0 10px var(--success-color)";
-      
-      // Update data every 5 seconds
-      setInterval(updateData, 5000);
-    }
-    
-    function updateData() {
-      // Simulate random fluctuations
-      const change = Math.floor(Math.random() * 100) - 50; // -50 to +50
-      currentPPM = Math.max(400, Math.min(2000, currentPPM + change));
-      
-      const now = Date.now();
-      const timestamp = new Date().toLocaleString();
-      
-      // Update current PPM display
-      document.getElementById("currentPPM").textContent = currentPPM;
-      
-      // Update status
-      updateStatus(currentPPM);
-      
-      // Add new log entry if interval has passed
-      if (now - lastUpdate >= updateInterval || lastUpdate === 0) {
-        const tableBody = document.getElementById("logTableBody");
-        const newRow = tableBody.insertRow(0);
-        
-        const timeCell = newRow.insertCell(0);
-        const ppmCell = newRow.insertCell(1);
-        const statusCell = newRow.insertCell(2);
-        
-        timeCell.textContent = timestamp;
-        ppmCell.textContent = currentPPM;
-        
-        // Add status indicator
-        if (currentPPM >= 400 && currentPPM <= 1000) {
-          statusCell.innerHTML = '<i class="fas fa-check-circle" style="color: var(--success-color)"></i> Normal';
-        } else if (currentPPM > 1000 && currentPPM <= 1400) {
-          statusCell.innerHTML = '<i class="fas fa-exclamation-triangle" style="color: var(--warning-color)"></i> Elevated';
-        } else {
-          statusCell.innerHTML = '<i class="fas fa-exclamation-circle" style="color: var(--danger-color)"></i> High';
-        }
-        
-        lastUpdate = now;
-      }
-    }
-    
+    connectWebSocket();
+
     function updateStatus(ppm) {
       const statusAlert = document.getElementById("statusAlert");
       if (ppm >= 400 && ppm <= 1000) {
@@ -381,56 +414,56 @@
         statusAlert.innerHTML = '<i class="fas fa-exclamation-circle"></i><span>CO₂ levels are too high!</span>';
       }
     }
-    
-    function downloadDemoCSV() {
+
+    function downloadCSV() {
       try {
         // Create a loading indicator
         const downloadBtn = document.querySelector('.download-btn');
         const originalText = downloadBtn.innerHTML;
         downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating CSV...';
         downloadBtn.disabled = true;
-        
-        // Create demo CSV data
-        const csvContent = "Timestamp,CO2 (ppm),Status\n";
-        const tableBody = document.getElementById("logTableBody");
-        const rows = tableBody.getElementsByTagName("tr");
-        
-        let csvData = csvContent;
-        for (let i = 0; i < rows.length; i++) {
-          const cells = rows[i].getElementsByTagName("td");
-          if (cells.length >= 3) {
-            const timestamp = cells[0].textContent;
-            const ppm = cells[1].textContent;
-            const status = cells[2].textContent.trim();
-            csvData += `${timestamp},${ppm},${status}\n`;
+
+        // Make the request to generate CSV using relative path
+        fetch('/download-co2', {
+          method: 'GET',
+          headers: {
+            'Accept': 'text/csv'
           }
-        }
-        
-        // Create download link
-        const blob = new Blob([csvData], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `co2_log_${new Date().toISOString().slice(0,10)}.csv`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-        
-        // Restore button state
-        downloadBtn.innerHTML = originalText;
-        downloadBtn.disabled = false;
+        })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          return response.blob();
+        })
+        .then(blob => {
+          if (blob.size === 0) {
+            throw new Error('Generated CSV is empty');
+          }
+          // Create download link
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `co2_log_${new Date().toISOString().slice(0,10)}.csv`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+        })
+        .catch(error => {
+          console.error('CSV download error:', error);
+          alert('Failed to generate CSV. Please try again later.');
+        })
+        .finally(() => {
+          // Restore button state
+          downloadBtn.innerHTML = originalText;
+          downloadBtn.disabled = false;
+        });
       } catch (error) {
         console.error('CSV download error:', error);
         alert('Failed to generate CSV. Please try again later.');
       }
     }
-    
-    // Start the demo when the page loads
-    window.onload = function() {
-      simulateWebSocket();
-      updateData(); // Initial update
-    };
   </script>
 </body>
-</html> 
+</html>
