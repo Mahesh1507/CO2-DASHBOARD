@@ -332,7 +332,7 @@
     function connectWebSocket() {
       // Try both secure and non-secure WebSocket connections
       const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-      const wsUrl = `${wsProtocol}192.168.204.116:1880/ws/co2`;
+      const wsUrl = `${wsProtocol}192.168.134.116:1880/ws/co2`;
       
       console.log(`Attempting to connect to ${wsUrl}`);
       
